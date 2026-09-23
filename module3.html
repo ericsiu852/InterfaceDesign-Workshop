@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Module 3: Progressive Card Sorting</title>
+    
+    <style>
+        :root {
+            --primary: #2F855A;       
+            --primary-hover: #276749;
+            --secondary: #D69E2E;     
+            --bg-color: #F7FAFC;      
+            --card-bg: #FFFFFF;
+            --text-main: #1A202C;     
+            --text-muted: #718096;    
+            --border-color: #E2E8F0;  
+            --border-dashed: #CBD5E0; 
+            --node-bg: #EDF2F7;       
+            --drop-active: #C6F6D5;
+        }
+
+        body { 
+            font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            background-image: radial-gradient(#E2E8F0 1px, transparent 1px);
+            background-size: 20px 20px;
+            color: var(--text-main); 
+            margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; 
+        }
+
+        header { background-color: var(--card-bg); width: 100%; padding: 20px 0; text-align: center; border-bottom: 3px solid var(--primary); box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; }
+        h1 { margin: 0; font-size: 28px; font-weight: 800; color: var(--text-main); text-transform: uppercase; letter-spacing: 1px;}
+        p { margin: 8px 0 0 0; font-size: 15px; color: var(--text-muted); }
+        .data-btn { position: absolute; top: 25px; right: 30px; background-color: var(--text-main); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
+
+        .container { width: 95%; max-width: 1300px; margin-top: 20px; }
+        
+        /* Sticky Notes Layout */
+        .sticky-container {
+            display: flex; justify-content: center; gap: 20px; margin-bottom: 30px; flex-wrap: wrap;
+        }
+        .sticky-note {
+            width: 220px; padding: 15px 20px; box-shadow: 2px 4px 8px rgba(0,0,0,0.15);
+            font-family: 'Comic Sans MS', 'Chalkboard SE', cursive, sans-serif; font-size: 14px; line-height: 1.4;
+            position: relative; color: #000;
+        }
+        /* Tape effect */
+        .sticky-note::before {
+            content: ""; position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+            width: 60px; height: 25px; background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(0,0,0,0.05);
+        }
+        .note-yellow { background-color: #FDE047; transform: rotate(-2deg); }
+        .note-orange { background-color: #FCA5A5; transform: rotate(1deg); }
+        .note-green { background-color: #86EFAC; transform: rotate(-1deg); }
+        .sticky-note h4 { margin: 0 0 8px 0; font-size: 16px; border-bottom: 1px dashed rgba(0,0,0,0.2); padding-bottom: 5px;}
+
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        .section-header h3 { margin: 0; font-size: 18px; }
+
+        .add-btn { background-color: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .add-btn:hover { background-color: var(--primary); color: white; }
+
+        /* Drag and Drop Zones */
+        .inventory-zone { background: var(--card-bg); border: 2px dashed var(--border-dashed); border-radius: 8px; padding: 20px; min-height: 120px; display: flex; flex-wrap: wrap; justify-content: center; gap: 15px; margin-bottom: 40px; align-items: flex-start; }
+        .architecture-zone { background: var(--bg-color); border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; min-height: 300px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; }
+        .architecture-zone.empty-state::before { content: "Create categories and drag the produce cards here to build your hierarchy..."; color: var(--border-dashed); width: 100%; text-align: center; padding-top: 130px; font-style: italic; }
+
+        /* Nested Categories */
+        .category { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 2px 4px rgba(0,0,0,0.02); cursor: grab; }
+        .architecture-zone > .category { width: 340px; min-height: 250px; }
+        .drop-zone > .category { width: 100%; margin-bottom: 10px; box-sizing: border-box; border-left: 4px solid var(--primary); }
+        .category-header { background-color: var(--node-bg); padding: 12px 15px; font-weight: 700; font-size: 16px; border-bottom: 1px solid var(--border-color); border-top-left-radius: 8px; border-top-right-radius: 8px; pointer-events: none; }
+        .drop-zone { flex-grow: 1; padding: 15px; display: flex; flex-wrap: wrap; gap: 10px; min-height: 80px; transition: 0.2s; align-content: flex-start;}
+        .drop-zone.dragover, .architecture-zone.dragover, .inventory-zone.dragover { background-color: var(--drop-active); }
+
+        /* Produce Item Cards */
+        .item-card { 
+            background-color: white; border: 1px solid var(--border-color); border-radius: 8px; 
+            width: 100px; height: 120px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; 
+            padding: 10px; cursor: grab; user-select: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); transition: transform 0.1s;
+        }
+        .item-card:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(0,0,0,0.1); }
+        .item-card:active, .category:active { cursor: grabbing; opacity: 0.8; transform: scale(0.95); }
+        
+        .card-img { font-size: 50px; line-height: 1; display: flex; align-items: center; justify-content: center; flex-grow: 1; }
+        .card-img img { max-width: 100%; max-height: 60px; object-fit: contain; }
+        .card-name { font-size: 12px; font-weight: 600; text-align: center; color: var(--text-main); margin-top: 5px; line-height: 1.2; width: 100%; word-wrap: break-word;}
+
+        .actions { text-align: center; margin: 50px 0; }
+        .action-btn { background-color: var(--primary); color: white; border: none; padding: 15px 30px; font-size: 18px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: 0.2s; box-shadow: 0 4px 6px rgba(47, 133, 90, 0.3);}
+        .action-btn:hover { background-color: var(--primary-hover); transform: translateY(-2px); box-shadow: 0 6px 8px rgba(47, 133, 90, 0.4);}
+
+        /* Modals */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(26, 32, 44, 0.8); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(3px); }
+        .modal-content { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);}
+        input[type="text"] { width: 100%; padding: 12px; font-size: 15px; margin: 8px 0 20px 0; border: 1px solid var(--border-color); border-radius: 6px; box-sizing: border-box; }
+        .close-btn { background: var(--text-main); color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; float: right; font-size: 13px; }
+
+        /* Site Map Tree */
+        .tree ul { list-style-type: none; padding-left: 24px; border-left: 1px dashed var(--border-color); margin-left: 10px; }
+        .tree li { margin: 12px 0; font-size: 15px; position: relative; }
+        .tree li::before { content: ""; position: absolute; top: 10px; left: -24px; width: 20px; border-top: 1px dashed var(--border-color); }
+        .tree .root-node { font-size: 18px; font-weight: 700; color: var(--primary); border: none; }
+        .tree .root-node::before { display: none; }
+        .tree .category-node { font-weight: 700; color: var(--secondary); font-size: 16px;}
+        .tree .item-node { display: flex; align-items: center; gap: 8px; color: var(--text-main); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="app-title">Progressive Card Sorting Exercise</h1>
+        <p id="app-desc">Drag the produce cards to build an Information Architecture.</p>
+        <button class="data-btn" onclick="toggleDataPanel()">⚙️ Data</button>
+    </header>
+
+    <div class="container">
+        <!-- Progressive Instructions from the reference image -->
+        <div class="sticky-container">
+            <div class="sticky-note note-yellow">
+                <h4>Individual Exercise:</h4>
+                How would you organise this produce in your own kitchen?
+            </div>
+            <div class="sticky-note note-orange">
+                <h4>Partner Exercise:</h4>
+                How would you organise this produce into categories for a grocery ordering website?
+            </div>
+            <div class="sticky-note note-green">
+                <h4>Group Exercise:</h4>
+                Now test your categories on another team. Do they make sense?
+            </div>
+        </div>
+
+        <!-- Inventory -->
+        <div class="section-header">
+            <h3>Uncategorized Produce (Inventory)</h3>
+            <button class="add-btn" onclick="openAddModal('item')">+ Add Produce Card</button>
+        </div>
+        <div class="inventory-zone" id="inventory" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+
+        <!-- Architecture (Open Sort) -->
+        <div class="section-header">
+            <h3>Target Architecture (Open Sort)</h3>
+            <button class="add-btn" onclick="openAddModal('category')">+ Create Category</button>
+        </div>
+        <div class="architecture-zone" id="architecture" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+
+        <div class="actions">
+            <button class="action-btn" onclick="generateSiteMap()">Generate Site Map Diagram</button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="add-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('add-modal')">Cancel</button>
+            <h2 id="add-modal-title">Add New Element</h2>
+            
+            <label><strong>Name / Label:</strong></label>
+            <input type="text" id="new-element-name" placeholder="e.g. Lime" autocomplete="off">
+            
+            <div id="image-input-group">
+                <label><strong>Image (Emoji or URL):</strong></label>
+                <input type="text" id="new-element-image" placeholder="🍋‍🟩 or https://..." autocomplete="off">
+                <span style="font-size: 12px; color: var(--text-muted); display: block; margin-top: -15px; margin-bottom: 20px;">
+                    Tip: Press <code>Win + .</code> (Windows) or <code>Cmd + Ctrl + Space</code> (Mac) to open the emoji keyboard.
+                </span>
+            </div>
+
+            <button class="action-btn" style="width:100%; padding: 12px;" onclick="createNewElement()">Create Element</button>
+        </div>
+    </div>
+
+    <div class="modal" id="sitemap-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('sitemap-modal')">Close</button>
+            <h2>Recursive Site Map Structure</h2>
+            <div class="tree" id="sitemap-tree"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="data-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('data-modal')">Cancel</button>
+            <h2>Dataset Management</h2>
+            <p style="font-size: 13px; color: var(--text-muted);">The JSON structure supports 'image' properties for items. Images can be Emojis or standard HTTP links.</p>
+            <textarea id="json-input" style="width: 100%; height: 350px; font-family: monospace; padding: 10px; border: 1px solid var(--border-color);"></textarea>
+            <button class="action-btn" style="width:100%; padding: 12px; margin-top:10px;" onclick="loadDatasetFromEditor()">Save & Apply Changes</button>
+        </div>
+    </div>
+
+    <script>
+        // Expanded 40-item Dataset 
+        let dataset = { 
+            inventory: [
+                // Original 20 (From Reference Image)
+                { id: "p1", type: "item", name: "Tomato", image: "🍅" },
+                { id: "p2", type: "item", name: "Zucchini", image: "🥒" },
+                { id: "p3", type: "item", name: "Mushrooms", image: "🍄" },
+                { id: "p4", type: "item", name: "Green Beans", image: "🫛" },
+                { id: "p5", type: "item", name: "Grapes", image: "🍇" },
+                { id: "p6", type: "item", name: "Eggplant", image: "🍆" },
+                { id: "p7", type: "item", name: "Cabbage", image: "🥬" },
+                { id: "p8", type: "item", name: "Watermelon", image: "🍉" },
+                { id: "p9", type: "item", name: "Bananas", image: "🍌" },
+                { id: "p10", type: "item", name: "Asparagus", image: "🎍" },
+                { id: "p11", type: "item", name: "Kiwi", image: "🥝" },
+                { id: "p12", type: "item", name: "Fig", image: "🌰" },
+                { id: "p13", type: "item", name: "Apple", image: "🍎" },
+                { id: "p14", type: "item", name: "Squash", image: "🍐" },
+                { id: "p15", type: "item", name: "Carrots", image: "🥕" },
+                { id: "p16", type: "item", name: "Lettuce", image: "🥬" },
+                { id: "p17", type: "item", name: "Artichoke", image: "🪷" },
+                { id: "p18", type: "item", name: "Beetroot", image: "🧅" },
+                { id: "p19", type: "item", name: "Brussel Sprouts", image: "🥬" },
+                { id: "p20", type: "item", name: "Avocado", image: "🥑" },
+                
+                // 20 Brand New Items Added
+                { id: "p21", type: "item", name: "Potato", image: "🥔" },
+                { id: "p22", type: "item", name: "Garlic", image: "🧄" },
+                { id: "p23", type: "item", name: "Corn", image: "🌽" },
+                { id: "p24", type: "item", name: "Broccoli", image: "🥦" },
+                { id: "p25", type: "item", name: "Bell Pepper", image: "🫑" },
+                { id: "p26", type: "item", name: "Chili Pepper", image: "🌶️" },
+                { id: "p27", type: "item", name: "Sweet Potato", image: "🍠" },
+                { id: "p28", type: "item", name: "Olive", image: "🫒" },
+                { id: "p29", type: "item", name: "Lemon", image: "🍋" },
+                { id: "p30", type: "item", name: "Orange", image: "🍊" },
+                { id: "p31", type: "item", name: "Strawberry", image: "🍓" },
+                { id: "p32", type: "item", name: "Blueberry", image: "🫐" },
+                { id: "p33", type: "item", name: "Peach", image: "🍑" },
+                { id: "p34", type: "item", name: "Cherry", image: "🍒" },
+                { id: "p35", type: "item", name: "Pineapple", image: "🍍" },
+                { id: "p36", type: "item", name: "Mango", image: "🥭" },
+                { id: "p37", type: "item", name: "Coconut", image: "🥥" },
+                { id: "p38", type: "item", name: "Melon", image: "🍈" },
+                { id: "p39", type: "item", name: "Green Apple", image: "🍏" },
+                { id: "p40", type: "item", name: "Lime", image: "🍋‍🟩" }
+            ], 
+            architecture: [] // Left intentionally blank for Open Sorting
+        };
+
+        // --- DOM Rendering Logic ---
+        function renderNode(nodeData) {
+            const el = document.createElement('div');
+            el.id = nodeData.id; 
+            el.draggable = true; 
+            el.ondragstart = drag;
+
+            if (nodeData.type === 'item') {
+                el.className = 'item-card'; 
+                
+                // Determine if the image is an emoji or a URL
+                const isUrl = nodeData.image && (nodeData.image.startsWith('http') || nodeData.image.startsWith('data:image'));
+                const visualHTML = isUrl 
+                    ? `<img src="${nodeData.image}" alt="${nodeData.name}">` 
+                    : `${nodeData.image || '📄'}`;
+                
+                el.innerHTML = `
+                    <div class="card-img">${visualHTML}</div>
+                    <div class="card-name">${nodeData.name}</div>
+                `;
+                // Store raw image data for export later
+                el.dataset.img = nodeData.image || '📄';
+            } 
+            else if (nodeData.type === 'category') {
+                el.className = 'category';
+                const header = document.createElement('div'); 
+                header.className = 'category-header'; 
+                header.innerText = nodeData.name;
+                
+                const dropZone = document.createElement('div'); 
+                dropZone.className = 'drop-zone';
+                dropZone.ondrop = drop; 
+                dropZone.ondragover = allowDrop; 
+                dropZone.ondragenter = dragEnter; 
+                dropZone.ondragleave = dragLeave;
+
+                if (nodeData.children && nodeData.children.length > 0) {
+                    nodeData.children.forEach(child => dropZone.appendChild(renderNode(child)));
+                }
+                el.appendChild(header); 
+                el.appendChild(dropZone);
+            }
+            return el;
+        }
+
+        function initArchitecture(data) {
+            const inv = document.getElementById(`inventory`);
+            const arch = document.getElementById(`architecture`);
+            inv.innerHTML = ''; arch.innerHTML = '';
+
+            if (data.architecture.length === 0) arch.classList.add('empty-state');
+            else arch.classList.remove('empty-state');
+
+            data.inventory.forEach(item => inv.appendChild(renderNode(item)));
+            data.architecture.forEach(cat => arch.appendChild(renderNode(cat)));
+        }
+
+        // --- Advanced Drag & Drop (Infinite Nesting) ---
+        function drag(ev) { ev.stopPropagation(); ev.dataTransfer.setData("text", ev.target.id); }
+        function allowDrop(ev) { ev.preventDefault(); ev.stopPropagation(); }
+        
+        function dragEnter(ev) { 
+            ev.preventDefault(); ev.stopPropagation(); 
+            if (ev.currentTarget.classList.contains("drop-zone") || ev.currentTarget.classList.contains("architecture-zone") || ev.currentTarget.classList.contains("inventory-zone")) {
+                ev.currentTarget.classList.add("dragover"); 
+            }
+        }
+        function dragLeave(ev) { ev.stopPropagation(); ev.currentTarget.classList.remove("dragover"); }
+        
+        function drop(ev) {
+            ev.preventDefault(); ev.stopPropagation(); ev.currentTarget.classList.remove("dragover");
+            
+            const dataId = ev.dataTransfer.getData("text"); 
+            const draggedElement = document.getElementById(dataId);
+            
+            if (!draggedElement || draggedElement.contains(ev.currentTarget)) {
+                return alert("Cannot nest a category inside of itself.");
+            }
+            
+            if (ev.currentTarget.classList.contains("drop-zone") || ev.currentTarget.classList.contains("architecture-zone") || ev.currentTarget.classList.contains("inventory-zone")) {
+                ev.currentTarget.appendChild(draggedElement);
+                if(ev.currentTarget.classList.contains("architecture-zone")) {
+                    ev.currentTarget.classList.remove("empty-state");
+                }
+            }
+        }
+
+        // --- Modals & Element Creation ---
+        let elementTypeToAdd = 'item'; 
+        
+        function openAddModal(type) {
+            elementTypeToAdd = type;
+            document.getElementById('add-modal-title').innerText = `Add New ${type === 'item' ? 'Produce Card' : 'Category'}`;
+            document.getElementById('new-element-name').value = '';
+            
+            const imgGroup = document.getElementById('image-input-group');
+            if(type === 'item') {
+                imgGroup.style.display = 'block';
+                document.getElementById('new-element-image').value = '';
+            } else {
+                imgGroup.style.display = 'none';
+            }
+
+            document.getElementById('add-modal').style.display = 'flex';
+            setTimeout(() => document.getElementById('new-element-name').focus(), 100);
+        }
+
+        function createNewElement() {
+            const name = document.getElementById('new-element-name').value.trim();
+            if (!name) return alert("Please provide a name.");
+            
+            const newId = `n-${elementTypeToAdd}-${Date.now()}`;
+            
+            let newNodeData = { id: newId, type: elementTypeToAdd, name: name, children: [] };
+            if (elementTypeToAdd === 'item') {
+                newNodeData.image = document.getElementById('new-element-image').value.trim() || '📄';
+            }
+
+            const newNode = renderNode(newNodeData);
+            
+            if (elementTypeToAdd === 'category') {
+                document.getElementById(`architecture`).appendChild(newNode);
+                document.getElementById(`architecture`).classList.remove('empty-state');
+            } else {
+                document.getElementById(`inventory`).appendChild(newNode);
+            }
+            closeModal('add-modal');
+        }
+
+        // --- Recursive Site Map Generation ---
+        function buildTree(containerElement) {
+            const ul = document.createElement('ul');
+            Array.from(containerElement.children).forEach(child => {
+                const li = document.createElement('li');
+                
+                if (child.classList.contains('item-card')) { 
+                    li.className = 'item-node'; 
+                    // Safely reconstruct the visual part for the tree
+                    const name = child.querySelector('.card-name').innerText;
+                    const imgRaw = child.dataset.img;
+                    const isUrl = imgRaw.startsWith('http') || imgRaw.startsWith('data:image');
+                    const visual = isUrl ? `<img src="${imgRaw}" style="width:20px; height:20px; object-fit:contain;">` : imgRaw;
+                    
+                    li.innerHTML = `${visual} <span>${name}</span>`; 
+                    ul.appendChild(li); 
+                } 
+                else if (child.classList.contains('category')) {
+                    li.className = 'category-node'; 
+                    li.innerText = child.querySelector('.category-header').innerText;
+                    
+                    const dropZone = child.querySelector('.drop-zone');
+                    if (dropZone.children.length > 0) li.appendChild(buildTree(dropZone));
+                    ul.appendChild(li);
+                }
+            }); 
+            return ul;
+        }
+
+        function generateSiteMap() {
+            const treeContainer = document.getElementById("sitemap-tree"); 
+            treeContainer.innerHTML = "";
+            const root = document.createElement("ul"); 
+            const homeNode = document.createElement("li");
+            homeNode.className = "root-node"; 
+            homeNode.innerText = "🌐 Root Directory";
+            
+            const archZone = document.getElementById(`architecture`);
+            if (archZone.children.length > 0) homeNode.appendChild(buildTree(archZone));
+            
+            const invZone = document.getElementById(`inventory`);
+            if(invZone.children.length > 0) {
+                const unassignedNode = document.createElement("li"); 
+                unassignedNode.className = "category-node";
+                unassignedNode.style.color = "var(--text-muted)"; 
+                unassignedNode.innerText = "⚠️ Unassigned Produce";
+                unassignedNode.appendChild(buildTree(invZone)); 
+                homeNode.appendChild(unassignedNode);
+            }
+            
+            root.appendChild(homeNode); 
+            treeContainer.appendChild(root);
+            document.getElementById("sitemap-modal").style.display = "flex";
+        }
+
+        // --- Data Management (JSON Sync) ---
+        function serializeZone(zoneElement) {
+            return Array.from(zoneElement.children).map(child => {
+                if (child.classList.contains('item-card')) {
+                    return { 
+                        id: child.id, 
+                        type: "item", 
+                        name: child.querySelector('.card-name').innerText,
+                        image: child.dataset.img
+                    };
+                }
+                else if (child.classList.contains('category')) {
+                    return { 
+                        id: child.id, 
+                        type: "category", 
+                        name: child.querySelector('.category-header').innerText, 
+                        children: serializeZone(child.querySelector('.drop-zone')) 
+                    };
+                }
+            });
+        }
+
+        function toggleDataPanel() {
+            const currentState = { 
+                inventory: serializeZone(document.getElementById(`inventory`)), 
+                architecture: serializeZone(document.getElementById(`architecture`)) 
+            };
+            document.getElementById("json-input").value = JSON.stringify(currentState, null, 4);
+            document.getElementById("data-modal").style.display = "flex";
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = "none"; }
+        
+        function loadDatasetFromEditor() {
+            try { 
+                dataset = JSON.parse(document.getElementById("json-input").value); 
+                initArchitecture(dataset); 
+                closeModal("data-modal"); 
+            } 
+            catch (error) { alert("JSON Parse Error: \n\n" + error.message); }
+        }
+
+        // --- Initialize ---
+        initArchitecture(dataset);
+    </script>
+</body>
+</html>

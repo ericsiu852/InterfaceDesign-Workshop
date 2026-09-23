@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IA: Text Open Sort</title>
+    
+    <!-- SheetJS for processing real Excel/CSV uploads entirely in the browser -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    
+    <style>
+        :root {
+            --primary: #4F46E5;       
+            --primary-hover: #4338CA;
+            --secondary: #0EA5E9;     
+            --bg-color: #F8FAFC;      
+            --card-bg: #FFFFFF;
+            --text-main: #0F172A;     
+            --text-muted: #64748B;    
+            --border-color: #CBD5E1;  
+            --border-dashed: #94A3B8; 
+            --node-bg: #F1F5F9;       
+            --drop-active: #E0F2FE;
+        }
+
+        body { font-family: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; padding: 0; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
+
+        header { background-color: var(--card-bg); width: 100%; padding: 20px 0; text-align: center; border-bottom: 3px solid var(--primary); box-shadow: 0 1px 3px rgba(0,0,0,0.05); position: relative; }
+        h1 { margin: 0; font-size: 24px; font-weight: 700; color: var(--primary); }
+        p { margin: 8px 0 0 0; font-size: 15px; color: var(--text-muted); }
+        .data-btn { position: absolute; top: 25px; right: 30px; background-color: var(--text-main); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; }
+
+        .container { width: 95%; max-width: 1200px; margin-top: 30px; }
+        .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; border-bottom: 2px solid var(--border-color); padding-bottom: 10px; }
+        .section-header h3 { margin: 0; font-size: 18px; }
+
+        .add-btn { background-color: transparent; color: var(--primary); border: 1px solid var(--primary); padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .add-btn:hover { background-color: var(--primary); color: white; }
+        
+        .import-btn { background-color: #10B981; color: white; border: none; padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+        .import-btn:hover { background-color: #059669; }
+
+        .inventory-zone { background: var(--card-bg); border: 2px dashed var(--border-dashed); border-radius: 8px; padding: 20px; min-height: 120px; display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 40px; align-items: flex-start; }
+        
+        .architecture-zone { background: var(--bg-color); border: 2px dashed var(--border-color); border-radius: 8px; padding: 20px; min-height: 300px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 20px; }
+        .architecture-zone.empty-state::before { content: "Create categories and drag them here to build your architecture..."; color: var(--border-dashed); width: 100%; text-align: center; padding-top: 130px; }
+
+        .category { background-color: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; display: flex; flex-direction: column; box-shadow: 0 2px 4px rgba(0,0,0,0.02); cursor: grab; }
+        .architecture-zone > .category { width: 320px; min-height: 200px; }
+        .drop-zone > .category { width: 100%; margin-bottom: 10px; box-sizing: border-box; border-left: 4px solid var(--secondary); }
+
+        .category-header { background-color: var(--node-bg); padding: 10px 15px; font-weight: 600; font-size: 14px; border-bottom: 1px solid var(--border-color); border-top-left-radius: 8px; border-top-right-radius: 8px; pointer-events: none; }
+        .drop-zone { flex-grow: 1; padding: 12px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; transition: 0.2s; }
+        .drop-zone.dragover, .architecture-zone.dragover, .inventory-zone.dragover { background-color: var(--drop-active); }
+
+        .item { background-color: var(--node-bg); border: 1px solid var(--border-color); padding: 10px 14px; border-radius: 6px; font-weight: 500; font-size: 14px; cursor: grab; user-select: none; display: inline-flex; align-items: center; }
+        .item:active, .category:active { cursor: grabbing; opacity: 0.8; }
+
+        .actions { text-align: center; margin: 50px 0; }
+        .action-btn { background-color: var(--primary); color: white; border: none; padding: 12px 24px; font-size: 16px; font-weight: 600; border-radius: 6px; cursor: pointer; transition: 0.2s; }
+        .action-btn:hover { background-color: var(--primary-hover); }
+
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); justify-content: center; align-items: center; z-index: 1000; backdrop-filter: blur(3px); }
+        .modal-content { background: white; padding: 30px; border-radius: 8px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; position: relative;}
+        input[type="text"], select, input[type="file"] { width: 100%; padding: 10px; font-size: 14px; margin: 8px 0 20px 0; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; }
+        .close-btn { background: var(--text-main); color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; float: right; font-size: 13px; }
+
+        .tree ul { list-style-type: none; padding-left: 24px; border-left: 1px dashed var(--border-color); margin-left: 10px; }
+        .tree li { margin: 12px 0; font-size: 15px; position: relative; }
+        .tree li::before { content: ""; position: absolute; top: 10px; left: -24px; width: 20px; border-top: 1px dashed var(--border-color); }
+        .tree .root-node { font-size: 18px; font-weight: 700; color: var(--primary); border: none; }
+        .tree .root-node::before { display: none; }
+        .tree .category-node { font-weight: 600; color: var(--secondary); }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1 id="app-title">Text Open Sort Environment</h1>
+        <p id="app-desc">Create your own categories and organize the nodes into a logical structural hierarchy.</p>
+        <button class="data-btn" onclick="toggleDataPanel()">⚙️ Data</button>
+    </header>
+
+    <div class="container">
+        <div class="section-header">
+            <h3>Uncategorized Nodes (Inventory)</h3>
+            <div style="display: flex; gap:10px;">
+                <button class="import-btn" onclick="openImportModal()">📥 Upload Spreadsheet</button>
+                <button class="add-btn" onclick="openAddModal('item')">+ Add Text Node</button>
+            </div>
+        </div>
+        <div class="inventory-zone" id="inventory" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+
+        <div class="section-header">
+            <h3>Target Architecture (Open Sort)</h3>
+            <button class="add-btn" onclick="openAddModal('category')">+ Create Category</button>
+        </div>
+        <div class="architecture-zone" id="architecture" ondrop="drop(event)" ondragover="allowDrop(event)" ondragenter="dragEnter(event)" ondragleave="dragLeave(event)"></div>
+
+        <div class="actions">
+            <button class="action-btn" onclick="generateSiteMap()">Generate Site Map Diagram</button>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal" id="import-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('import-modal')">Cancel</button>
+            <h2>Import from Spreadsheet</h2>
+            <p style="color: var(--text-muted); font-size: 14px;">Upload an Excel (.xlsx, .xls) or CSV file. Once loaded, choose which column to extract the items from.</p>
+            <label><strong>1. Select File:</strong></label>
+            <input type="file" id="file-upload" accept=".xlsx, .xls, .csv">
+            <div id="column-selection-area" style="display: none;">
+                <label><strong>2. Choose Import Column:</strong></label>
+                <select id="col-select"></select>
+                <button class="action-btn" style="width:100%; padding: 10px;" onclick="processSpreadsheet()">Import Nodes</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal" id="add-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('add-modal')">Cancel</button>
+            <h2 id="add-modal-title">Add New Element</h2>
+            <label><strong>Label (Text):</strong></label>
+            <input type="text" id="new-element-name" placeholder="Type name here..." autocomplete="off">
+            <button class="action-btn" style="width:100%; padding: 10px;" onclick="createNewElement()">Create Element</button>
+        </div>
+    </div>
+
+    <div class="modal" id="sitemap-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('sitemap-modal')">Close</button>
+            <h2>Recursive Site Map Structure</h2>
+            <div class="tree" id="sitemap-tree"></div>
+        </div>
+    </div>
+
+    <div class="modal" id="data-modal">
+        <div class="modal-content">
+            <button class="close-btn" onclick="closeModal('data-modal')">Cancel</button>
+            <h2>Dataset Management</h2>
+            <textarea id="json-input" style="width: 100%; height: 250px; font-family: monospace;"></textarea>
+            <button class="action-btn" style="width:100%; padding: 10px;" onclick="loadDatasetFromEditor()">Save & Apply Changes</button>
+        </div>
+    </div>
+
+    <script>
+        let dataset = { inventory: [], architecture: [] };
+        let parsedSpreadsheetData = [];
+
+        function renderNode(nodeData) {
+            const el = document.createElement('div');
+            el.id = nodeData.id; el.draggable = true; el.ondragstart = drag;
+
+            if (nodeData.type === 'item') {
+                el.className = 'item'; el.innerText = nodeData.val;
+            } else if (nodeData.type === 'category') {
+                el.className = 'category';
+                const header = document.createElement('div'); header.className = 'category-header'; header.innerText = nodeData.val;
+                const dropZone = document.createElement('div'); dropZone.className = 'drop-zone';
+                dropZone.ondrop = drop; dropZone.ondragover = allowDrop; dropZone.ondragenter = dragEnter; dropZone.ondragleave = dragLeave;
+
+                if (nodeData.children && nodeData.children.length > 0) {
+                    nodeData.children.forEach(child => dropZone.appendChild(renderNode(child)));
+                }
+                el.appendChild(header); el.appendChild(dropZone);
+            }
+            return el;
+        }
+
+        function initArchitecture(data) {
+            const inv = document.getElementById(`inventory`);
+            const arch = document.getElementById(`architecture`);
+            inv.innerHTML = ''; arch.innerHTML = '';
+
+            if (data.architecture.length === 0) arch.classList.add('empty-state');
+            else arch.classList.remove('empty-state');
+
+            data.inventory.forEach(item => inv.appendChild(renderNode(item)));
+            data.architecture.forEach(cat => arch.appendChild(renderNode(cat)));
+        }
+
+        function drag(ev) { ev.stopPropagation(); ev.dataTransfer.setData("text", ev.target.id); }
+        function allowDrop(ev) { ev.preventDefault(); ev.stopPropagation(); }
+        function dragEnter(ev) { ev.preventDefault(); ev.stopPropagation(); if (ev.currentTarget.classList.contains("drop-zone") || ev.currentTarget.classList.contains("architecture-zone") || ev.currentTarget.classList.contains("inventory-zone")) ev.currentTarget.classList.add("dragover"); }
+        function dragLeave(ev) { ev.stopPropagation(); ev.currentTarget.classList.remove("dragover"); }
+        function drop(ev) {
+            ev.preventDefault(); ev.stopPropagation(); ev.currentTarget.classList.remove("dragover");
+            const dataId = ev.dataTransfer.getData("text"); const draggedElement = document.getElementById(dataId);
+            if (!draggedElement || draggedElement.contains(ev.currentTarget)) return alert("Cannot nest a category inside of itself.");
+            if (ev.currentTarget.classList.contains("drop-zone") || ev.currentTarget.classList.contains("architecture-zone") || ev.currentTarget.classList.contains("inventory-zone")) {
+                ev.currentTarget.appendChild(draggedElement);
+                if(ev.currentTarget.classList.contains("architecture-zone")) ev.currentTarget.classList.remove("empty-state");
+            }
+        }
+
+        let elementTypeToAdd = 'item'; 
+        function openAddModal(type) {
+            elementTypeToAdd = type;
+            document.getElementById('add-modal-title').innerText = `Add New ${type === 'item' ? 'Node' : 'Category'}`;
+            document.getElementById('new-element-name').value = '';
+            document.getElementById('add-modal').style.display = 'flex';
+            setTimeout(() => document.getElementById('new-element-name').focus(), 100);
+        }
+
+        function createNewElement() {
+            const val = document.getElementById('new-element-name').value.trim();
+            if (!val) return alert("Please provide a label.");
+            const newId = `t-${elementTypeToAdd}-${Date.now()}`;
+            const newNode = renderNode({ id: newId, type: elementTypeToAdd, val: val, children: [] });
+            
+            if (elementTypeToAdd === 'category') {
+                document.getElementById(`architecture`).appendChild(newNode);
+                document.getElementById(`architecture`).classList.remove('empty-state');
+            } else {
+                document.getElementById(`inventory`).appendChild(newNode);
+            }
+            closeModal('add-modal');
+        }
+
+        function openImportModal() {
+            document.getElementById('file-upload').value = '';
+            document.getElementById('column-selection-area').style.display = 'none';
+            document.getElementById('import-modal').style.display = 'flex';
+        }
+
+        document.getElementById('file-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0]; if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                const data = new Uint8Array(evt.target.result); const workbook = XLSX.read(data, {type: 'array'});
+                parsedSpreadsheetData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header: 1});
+                if(parsedSpreadsheetData.length === 0) return alert("The spreadsheet appears to be empty.");
+                const headers = parsedSpreadsheetData[0]; const colSelect = document.getElementById('col-select');
+                colSelect.innerHTML = '';
+                for(let i=0; i < headers.length; i++) {
+                    const option = document.createElement('option'); option.value = i;
+                    option.text = `Column ${String.fromCharCode(65 + i)}: ${headers[i] || 'No Header'}`;
+                    if (i === 2) option.selected = true; colSelect.appendChild(option);
+                }
+                document.getElementById('column-selection-area').style.display = 'block';
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        function processSpreadsheet() {
+            const selectedColIndex = parseInt(document.getElementById('col-select').value); let addedCount = 0;
+            for(let i = 1; i < parsedSpreadsheetData.length; i++) {
+                const row = parsedSpreadsheetData[i];
+                if(row && row[selectedColIndex]) {
+                    const val = row[selectedColIndex].toString().trim();
+                    if (val) { dataset.inventory.push({ id: `t-item-${Date.now()}-${addedCount}`, type: 'item', val: val }); addedCount++; }
+                }
+            }
+            initArchitecture(dataset); closeModal('import-modal'); alert(`Successfully imported ${addedCount} items!`);
+        }
+
+        function buildTree(containerElement) {
+            const ul = document.createElement('ul');
+            Array.from(containerElement.children).forEach(child => {
+                const li = document.createElement('li');
+                if (child.classList.contains('item')) { li.className = 'item-node'; li.innerText = child.innerText; ul.appendChild(li); } 
+                else if (child.classList.contains('category')) {
+                    li.className = 'category-node'; li.innerText = child.querySelector('.category-header').innerText;
+                    const dropZone = child.querySelector('.drop-zone');
+                    if (dropZone.children.length > 0) li.appendChild(buildTree(dropZone));
+                    ul.appendChild(li);
+                }
+            }); return ul;
+        }
+
+        function generateSiteMap() {
+            const treeContainer = document.getElementById("sitemap-tree"); treeContainer.innerHTML = "";
+            const root = document.createElement("ul"); const homeNode = document.createElement("li");
+            homeNode.className = "root-node"; homeNode.innerText = "Root Directory";
+            const archZone = document.getElementById(`architecture`);
+            if (archZone.children.length > 0) homeNode.appendChild(buildTree(archZone));
+            const invZone = document.getElementById(`inventory`);
+            if(invZone.children.length > 0) {
+                const unassignedNode = document.createElement("li"); unassignedNode.className = "category-node";
+                unassignedNode.style.color = "var(--text-muted)"; unassignedNode.innerText = "⚠️ Unassigned Nodes";
+                unassignedNode.appendChild(buildTree(invZone)); homeNode.appendChild(unassignedNode);
+            }
+            root.appendChild(homeNode); treeContainer.appendChild(root);
+            document.getElementById("sitemap-modal").style.display = "flex";
+        }
+
+        function serializeZone(zoneElement) {
+            return Array.from(zoneElement.children).map(child => {
+                if (child.classList.contains('item')) return { id: child.id, type: "item", val: child.innerText };
+                else if (child.classList.contains('category')) return { id: child.id, type: "category", val: child.querySelector('.category-header').innerText, children: serializeZone(child.querySelector('.drop-zone')) };
+            });
+        }
+
+        function toggleDataPanel() {
+            document.getElementById("json-input").value = JSON.stringify({ inventory: serializeZone(document.getElementById(`inventory`)), architecture: serializeZone(document.getElementById(`architecture`)) }, null, 4);
+            document.getElementById("data-modal").style.display = "flex";
+        }
+
+        function closeModal(id) { document.getElementById(id).style.display = "none"; }
+        function loadDatasetFromEditor() {
+            try { dataset = JSON.parse(document.getElementById("json-input").value); initArchitecture(dataset); closeModal("data-modal"); } 
+            catch (error) { alert("JSON Parse Error: \n\n" + error.message); }
+        }
+
+        initArchitecture(dataset);
+    </script>
+</body>
+</html>
